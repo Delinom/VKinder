@@ -1,6 +1,4 @@
-import psycopg2
-# import sqlalchemy as sql
-from sqlalchemy import ForeignKey, ARRAY, Column, String, Integer, func
+from sqlalchemy import ForeignKey, Column, String, Integer
 from sqlalchemy.orm import declarative_base, relationship
 
 
@@ -23,7 +21,7 @@ class User(Base):
 class SearchResult(Base):
     __tablename__ = 'search_result'
 
-    id = id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     id_user = Column(Integer, ForeignKey('users.id_vk'), nullable=False)
     id_found_people  = Column(Integer, nullable=False)
 
@@ -33,7 +31,8 @@ class SearchResult(Base):
 class Favourite(Base):
     __tablename__ = 'favourites'
 
-    id_user = Column(Integer, ForeignKey('users.id_vk'), primary_key=True, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_user = Column(Integer, ForeignKey('users.id_vk'), nullable=False)
     id_favorites_people = Column(Integer)
 
     user = relationship('User', back_populates='favorites_people')
@@ -42,7 +41,8 @@ class Favourite(Base):
 class Blacklist(Base):
     __tablename__ = 'blacklist'
 
-    id_user = Column(Integer, ForeignKey('users.id_vk'), primary_key=True, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_user = Column(Integer, ForeignKey('users.id_vk'), nullable=False)
     id_blacklist_people = Column(Integer)
 
     user = relationship('User', back_populates='blacklist_people')
