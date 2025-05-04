@@ -1,12 +1,7 @@
-import sqlalchemy
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 import psycopg2
 from psycopg2 import sql
-from dotenv import load_dotenv
 import database.orm_models
-# from models import User, Favourite, Blacklist, SearchResult
-import os, sys
 
 def initialize_db(DSN):
     engine = create_engine(DSN)
@@ -36,7 +31,7 @@ def create_db(DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT):
         cursor.close()
         conn.close()
         return True
-    except Exception as e:
+    except:
         return False
 
 def create_tables(engine):
