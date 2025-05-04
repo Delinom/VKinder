@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Column, String, Integer
+from sqlalchemy import ForeignKey, Column, String, Integer, DateTime
 from sqlalchemy.orm import declarative_base, relationship
 
 
@@ -8,7 +8,8 @@ class User(Base):
     __tablename__ = 'users'
 
     id_vk = Column(Integer, primary_key=True)
-    token = Column(String(length=300))
+    token = Column(String(length=300), nullable=False)
+    token_expire = Column(DateTime, nullable=False)
     first_name = Column(String(length=40), nullable=False)
     last_name = Column(String(length=60), nullable=False)
     sex = Column(Integer, nullable=False)

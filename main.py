@@ -10,39 +10,41 @@ DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 APP_TOKEN = os.getenv("APP_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
+CLIENT_ID = os.getenv("CLIENT_ID")
 DSN = f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
 os.environ["DSN"] = DSN
+os.environ["GROUP_ID"] = GROUP_ID
+os.environ["CLIENT_ID"] = CLIENT_ID
 os.environ["APP_TOKEN"] = APP_TOKEN
 
-import vk_api
 from sqlalchemy import create_engine
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
-from vk_api.keyboard import VkKeyboard, VkKeyboardColor
-import sys
+import sys, threading
 from database.preparing_bd import initialize_db, create_db, create_tables
-from handlers.handler import handler
-from context import VK, VK_SESSION
-from utils.vk_helpers import callback_routes
+from handlers.handler_text import handler_message
+from context import VK_SESSION
+from handlers.handler_decorators import callback_routes
+from datetime import datetime, timedelta
+import handlers.handler_callback # необходим для инициализации модуля
 
-# Словарь активных пользователей(кеш) {user_id:{'token': value, expire_time: value}
+# Словарь активных пользователей(кеш) {user_id:{'state': str, 'remove_at': datetime}
 active_users = {}
 
 # Создание Long poll с токеном бота
 longpoll = VkBotLongPoll(VK_SESSION, group_id=GROUP_ID)
 
 # Функция удаляющая неактивных пользователей раз в час
-# def clean_active_users():
-#     now = datetime.now()
-#     for user_id in list(active_users):
-#         if active_users[user_id] <= now:
-#             del active_users[user_id]
-#             print(f"Удален пользователь {user_id}")
-#     # Запланировать следующий запуск через 1 час
-#     threading.Timer(3600, clean_active_users).start()
+def clean_inactive_users(actives):
+    now = datetime.now()
+    for id_ in list(actives):
+        if actives[id_]['remove_at'] <= now:
+            del actives[id_]
+            print(f"Удален пользователь {id_}")
+    # Запланировать следующий запуск через 1 час
+    threading.Timer(3600, clean_inactive_users, args=(actives,)).start()
 
 # Тело самого бота
 if __name__ == '__main__':
-    # clean_active_users()
     engine = create_engine(DSN)
     if initialize_db(DSN):
         print(f"База данных '{DB_NAME}' уже существует")
@@ -54,16 +56,8 @@ if __name__ == '__main__':
             input('Нажмите любую клавишу для завершения программы')
             sys.exit()
     create_tables(engine)
-
-# Временная клавиатура
-keyboard = VkKeyboard(one_time=False)
-keyboard.add_button('Основная кнопка', color=VkKeyboardColor.POSITIVE)
-keyboard.add_button('Еще кнопка', color=VkKeyboardColor.PRIMARY)
-
-if __name__ == '__main__':
     print('Программа запущена')
-    response = VK.groups.getById()
-    response = vk_api.VkApi(token=APP_TOKEN).method('users.get')
+    clean_inactive_users(active_users)
     # Главный цикл, где бот прослушивает события
     for event in longpoll.listen():
         # Проверка на то, что пришло новое сообщение
@@ -72,15 +66,17 @@ if __name__ == '__main__':
             user_id = event.obj['message']['from_id']
             text = event.obj['message']['text']
             date = event.obj['message']['date']
-            active_users.update({user_id: handler(user_id, text, active_users.get(user_id), date)})
+            if user_id not in active_users:
+                active_users.update({user_id:{'state': None, 'remove_at': datetime.now()+timedelta(minutes=30)}})
+            active_users[user_id]['state'] = handler_message(user_id=user_id, message=text, state=active_users.get(user_id).get('state'))
         # Проверка на событие с callback от inline-кнопок
         elif event.type == VkBotEventType.MESSAGE_EVENT:
             print(f"Событие от пользователя {event.obj['user_id']}")
+            user_id = event.obj['user_id']
             payload = event.obj.get('payload', {})
             button = payload.get('button')
+            if user_id not in active_users:
+                active_users.update({user_id:{'state': None, 'remove_at': datetime.now()+timedelta(minutes=30)}})
             callback_handler = callback_routes.get(button)
-            if callback_handler:
-                callback_handler(event)
-            else:
-                print(f"Нет обработчика для кнопки: {button}")
+            callback_handler(event)
 
