@@ -1,55 +1,86 @@
+import os
+from dotenv import load_dotenv
+
+# Получение переменных окружения
+load_dotenv()
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+APP_TOKEN = os.getenv("APP_TOKEN")
+GROUP_ID = os.getenv("GROUP_ID")
+DSN = f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+os.environ["DSN"] = DSN
+os.environ["APP_TOKEN"] = APP_TOKEN
+
 import vk_api
-from vk_api.longpoll import VkLongPoll, VkEventType
+from sqlalchemy import create_engine
+from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
-from handlers import handlers
-from classes import User
-import configparser
+import sys
+from database.preparing_bd import initialize_db, create_db, create_tables
+from handlers.handler import handler
+from context import VK, VK_SESSION
+from utils.vk_helpers import callback_routes
 
-# Парсим глобальные переменные из settings.ini, а точнее, токен приложения
-config = configparser.ConfigParser()
-config.read('settings.ini')
-APP_TOKEN = config['Tokens']['app_token']
-#Создаем бота ВК через vk_api с токеном приложения
-vk_session = vk_api.VkApi(token=APP_TOKEN)
-longpoll = VkLongPoll(vk_session)
-vk = vk_session.get_api()
+# Словарь активных пользователей(кеш) {user_id:{'token': value, expire_time: value}
+active_users = {}
 
-#Инициализация клавиатары. Скорее всего, временная, для примера. Потом переместится в отдельный модуль
-keyboard = VkKeyboard(one_time=True)
-keyboard.add_button("Найди мне пару", color=VkKeyboardColor.POSITIVE)
-# keyboard.add_button("Помощь", color=VkKeyboardColor.PRIMARY)
-# keyboard.add_line()  # Переход на новую строку
-# keyboard.add_button("Выход", color=VkKeyboardColor.NEGATIVE)
+# Создание Long poll с токеном бота
+longpoll = VkBotLongPoll(VK_SESSION, group_id=GROUP_ID)
 
-
-# Заглушка вместо результата запроса на наличие пользователя в бд
-user_in_db = 1
-
+# Функция удаляющая неактивных пользователей раз в час
+# def clean_active_users():
+#     now = datetime.now()
+#     for user_id in list(active_users):
+#         if active_users[user_id] <= now:
+#             del active_users[user_id]
+#             print(f"Удален пользователь {user_id}")
+#     # Запланировать следующий запуск через 1 час
+#     threading.Timer(3600, clean_active_users).start()
 
 # Тело самого бота
 if __name__ == '__main__':
+    # clean_active_users()
+    engine = create_engine(DSN)
+    if initialize_db(DSN):
+        print(f"База данных '{DB_NAME}' уже существует")
+    else:
+        if create_db(DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT):
+            print('База успешно создана')
+        else:
+            print(f"Произошла ошибка при создании базы. Попробуйте создать базу вручную")
+            input('Нажмите любую клавишу для завершения программы')
+            sys.exit()
+    create_tables(engine)
+
+# Временная клавиатура
+keyboard = VkKeyboard(one_time=False)
+keyboard.add_button('Основная кнопка', color=VkKeyboardColor.POSITIVE)
+keyboard.add_button('Еще кнопка', color=VkKeyboardColor.PRIMARY)
+
+if __name__ == '__main__':
+    print('Программа запущена')
+    response = VK.groups.getById()
+    response = vk_api.VkApi(token=APP_TOKEN).method('users.get')
     # Главный цикл, где бот прослушивает события
     for event in longpoll.listen():
-        # Проверка на то, что пришло новое сообщение и оно адресовано боту
-        if event.type == VkEventType.MESSAGE_NEW and event.to_me:
-            # Отладочный принт
-            print(f"Сообщение от {event.user_id}: {event.text}")
-            # Тут должен быть запрос в базу на наличие в нем пользователя и если его там нет, то регистрация его в базе
-            if event.user_id != user_in_db:
-                # Регистрация в базе и приветственное сообщение
-                user_in_db = event.user_id
-                vk.messages.send(
-                    user_id=event.user_id,
-                    message="Добро пожаловать! Сейчас тебя зарегистрирую и начнем!",
-                    keyboard=keyboard.get_keyboard(),
-                    random_id=vk_api.utils.get_random_id()
-                )
-                continue
-            # Если пользователь уже в базе, то передача текста сообщения в обработчик
+        # Проверка на то, что пришло новое сообщение
+        if event.type == VkBotEventType.MESSAGE_NEW:
+            print(f'Событие нового сообщения от пользователя {event.obj['message']['from_id']}')
+            user_id = event.obj['message']['from_id']
+            text = event.obj['message']['text']
+            date = event.obj['message']['date']
+            active_users.update({user_id: handler(user_id, text, active_users.get(user_id), date)})
+        # Проверка на событие с callback от inline-кнопок
+        elif event.type == VkBotEventType.MESSAGE_EVENT:
+            print(f"Событие от пользователя {event.obj['user_id']}")
+            payload = event.obj.get('payload', {})
+            button = payload.get('button')
+            callback_handler = callback_routes.get(button)
+            if callback_handler:
+                callback_handler(event)
             else:
-                text = event.text
-                for keyword, handler in handlers.items():
-                    if keyword in text:
-                        handler(event, vk)
-                        break
+                print(f"Нет обработчика для кнопки: {button}")
 
