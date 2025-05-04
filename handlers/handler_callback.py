@@ -3,6 +3,7 @@ from utils.vk_helpers import send_message, delete_message, show_random_from_sear
 from context import main_kb
 from handlers.handler_decorators import on_callback
 
+# Обработчики кнопок inline-клавиатуры
 @on_callback('like')
 def handle_like(event):
     user_id = event.obj.get('user_id')

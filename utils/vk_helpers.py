@@ -8,6 +8,7 @@ from context import VK, main_kb, reaction_kb
 from database.db import get_user, delete_all_from_search, save_user, show_favorites, show_blacklist, get_user_from_search, save_search_result
 from database.orm_models import User
 
+# Модуль вспомогательных функций
 DSN = os.getenv('DSN')
 GROUP_ID = os.getenv('GROUP_ID')
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -40,6 +41,7 @@ def get_vk_user(user_id):
     vk_user = vk_session.get_api()
     return vk_user
 
+# Функция поиска
 def start_search(user_id: int):
     delete_all_from_search(user_id)
     user = get_user(user_id)
@@ -61,7 +63,7 @@ def start_search(user_id: int):
         age_to=max_age,
         count=15
     )
-    # Сохранение результатов
+    # Сохранение результатов, исключая содержимое списков избранного и ЧС
     exclude_set = set(show_favorites(user_id) + show_blacklist(user_id))
     search_result = set(human['id'] for human in response['items'] if human['is_closed']==False)
     if exclude_set:
@@ -74,6 +76,7 @@ def start_search(user_id: int):
         send_message(user_id, 'Для твоего профиля больше нет совпадений. Для нового поиска измени данные')
         return 'working'
 
+# Функция регистрации
 def registration(user_id: int, message: str):
     if message.startswith('https://oauth.vk.com/blank.html?code='):
         try:
@@ -137,15 +140,14 @@ def get_token(user_id: int, code_string: str) -> tuple[str]|bool:
         print(response.status_code, response.text)
         return False
 
+# Генерация url'а для OAuth
 def generate_code_url(user_id: int) -> str:
 
     # Генерация code_verifier и code_challenge
     code_verifier = secrets.token_urlsafe(64)
     code_verifiers.update({user_id: code_verifier})
 
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).decode().rstrip("=")
+    code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).decode().rstrip("=")
     redirect_uri = 'https://oauth.vk.com/blank.html'
 
     # Формирование URL
@@ -157,9 +159,9 @@ def generate_code_url(user_id: int) -> str:
         f"&code_challenge={code_challenge}"
         f"&code_challenge_method=S256"
     )
-
     return auth_url
 
+# Функция сбора и проверки данных для поиска
 def get_user_info(user_id: int, token: str) -> dict|bool:
     vk_session = vk_api.VkApi(token=token)
     vk = vk_session.get_api()
@@ -192,12 +194,6 @@ def check_response(response):
     else:
         return True
 
-# Сервисная функция создания сессии
-def get_session() -> Session:
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    return session
-
 # Проверка токена на валидность
 def check_token(user_id: int) -> bool:
     user = get_user(user_id)
@@ -209,12 +205,8 @@ def check_token(user_id: int) -> bool:
     else:
         return False
 
-def user_in_db(user_id: int) -> User|None:
-    session = get_session()
-    return session.query(User).filter_by(id_vk=user_id).first()
-
+# Функция для генерации случайного пользователя из текущего поиска
 def show_random_from_search(user_id: int):
-    # Рандомный человек для предложки
     vk_user = get_vk_user(user_id)
     human_id = get_user_from_search(user_id)
     if human_id is None:
@@ -228,6 +220,7 @@ def show_random_from_search(user_id: int):
                      attachment=get_top_photos(vk_user.photos.get(owner_id=human_id, album_id='profile', extended=True))
                      )
 
+# Функция формирования attachment из 3 самых популярных фото профиля
 def get_top_photos(response: dict, count: int = 3) -> str:
     sorted_photos = sorted(response['items'], key=lambda x: x.get('likes', {}).get('count', 0), reverse=True)
     top_photos = sorted_photos[:count]
