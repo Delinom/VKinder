@@ -2,6 +2,7 @@ import os, vk_api
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from models.keyboard import KeyboardBuilder
 
+# Модуль контекста: сессия и клавиатуры
 VK_SESSION = vk_api.VkApi(token=os.getenv("APP_TOKEN"))
 VK = VK_SESSION.get_api()
 

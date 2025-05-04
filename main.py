@@ -33,7 +33,7 @@ active_users = {}
 # Создание Long poll с токеном бота
 longpoll = VkBotLongPoll(VK_SESSION, group_id=GROUP_ID)
 
-# Функция удаляющая неактивных пользователей раз в час
+# Функция удаляющая неактивных пользователей из кеша раз в час
 def clean_inactive_users(actives):
     now = datetime.now()
     for id_ in list(actives):
@@ -45,6 +45,7 @@ def clean_inactive_users(actives):
 
 # Тело самого бота
 if __name__ == '__main__':
+    # Подготовка базы
     engine = create_engine(DSN)
     if initialize_db(DSN):
         print(f"База данных '{DB_NAME}' уже существует")
@@ -57,6 +58,7 @@ if __name__ == '__main__':
             sys.exit()
     create_tables(engine)
     print('Программа запущена')
+    # Запуск таймера удаления неактивных пользователей
     clean_inactive_users(active_users)
     # Главный цикл, где бот прослушивает события
     for event in longpoll.listen():

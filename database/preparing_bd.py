@@ -35,7 +35,7 @@ def create_db(DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT):
         return False
 
 def create_tables(engine):
-    database.orm_models.Base.metadata.drop_all(engine)
+    # database.orm_models.Base.metadata.drop_all(engine) # Раскомментировать для очистки таблиц
     database.orm_models.Base.metadata.create_all(engine)
 
 

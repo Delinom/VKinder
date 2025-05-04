@@ -5,6 +5,7 @@ from handlers.handler_decorators import handlers, message_handler
 from context import main_kb, registration_kb, show_list_kb
 from database.db import show_favorites, show_blacklist, delete_favorite_people, delete_blacklist_people, get_user
 
+# Обработчики текстовых сообщений
 def handler_message(user_id: int, message: str, state: str|None, **kwargs: 'Any') -> str | None:
     if state is None:
         if get_user(user_id):
