@@ -107,7 +107,7 @@ def default_handler(user_id: int, message: str, state: str|None, **kwargs: 'Any'
             try:
                 delete_favorite_people(user_id, ids)
                 send_message(user_id, 'Удаление прошло успешно. Вот твой обновленный список избранного')
-                handle_show_favorite(user_id, message, state)
+                handle_show_favorite(user_id)
                 return 'show_favorites'
             except:
                 send_message(user_id, 'Произошла ошибка')
@@ -120,7 +120,7 @@ def default_handler(user_id: int, message: str, state: str|None, **kwargs: 'Any'
             try:
                 delete_blacklist_people(user_id, ids)
                 send_message(user_id, "Удаление прошло успешно. Вот твой обновленный 'черный' список")
-                handle_show_blacklist(user_id, message, state)
+                handle_show_blacklist(user_id)
                 return 'show_blacklist'
             except:
                 send_message(user_id, 'Произошла ошибка')
